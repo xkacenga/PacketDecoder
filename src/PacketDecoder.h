@@ -6,13 +6,13 @@
 #include <vector>
 
 struct Header {
-    unsigned long version;
-    unsigned long typeId;
+    long version;
+    long typeId;
 };
 
 struct PacketResult {
     int packetLength;
-    unsigned long value;
+    long value;
 };
 
 class PacketDecoder {
@@ -29,11 +29,11 @@ class PacketDecoder {
     PacketResult readPacket();
     PacketResult readOperatorPacket(int typeId);
     PacketResult readLiteralPacket();
+    PacketResult readLiteralValue();
+    int removeExtraBits();
+    long calculateOperationResult(int typeId, const std::vector<long> &results);
     Header readHeader();
-    int readNumberOfSubpackets();
-    int readLengthOfSubpackets();
-    char readLengthTypeId();
-    static unsigned long calculateOperationResult(int typeId, const std::vector<unsigned long> &results);
+    long readBits(int count);
 public:
     PacketDecoder(std::ifstream &fs);
     void decode();

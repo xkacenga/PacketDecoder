@@ -1,7 +1,5 @@
 #include "NumberConvertor.h"
 
-#include <iostream>
-
 std::string NumberConvertor::convertHexToBinary(char hex) {
     switch (hex) {
         case '0': return "0000";
@@ -24,6 +22,6 @@ std::string NumberConvertor::convertHexToBinary(char hex) {
     }
 }
 
-unsigned long long NumberConvertor::convertBinaryToLong(const std::string &binary) {
-    return stoull(binary, nullptr, 2);
+long NumberConvertor::convertBinaryToLong(const std::string &binary) {
+    return stol(binary, nullptr, 2);
 }

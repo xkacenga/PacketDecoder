@@ -36,6 +36,12 @@ PacketResult PacketDecoder::readPacket() {
 }
 
 PacketResult PacketDecoder::readLiteralPacket() {
+    PacketResult literalResult = readLiteralValue();
+    int extraLength = removeExtraBits();
+    return {literalResult.packetLength + extraLength, literalResult.value};
+}
+
+PacketResult PacketDecoder::readLiteralValue() {
     std::stringstream literal;
     int literalLength = 0;
 
@@ -45,19 +51,22 @@ PacketResult PacketDecoder::readLiteralPacket() {
         literal << bitGroup.substr(1);
         literalLength += LITERAL_GROUP_SIZE;
     } while (bitGroup[0] != '0');
+    return {literalLength, NumberConvertor::convertBinaryToLong(literal.str())};
+}
 
+int PacketDecoder::removeExtraBits() {
     int extraLength = ss.str().length() % 4;
     std::string extra(extraLength, ' ');
     ss.read(&extra[0], extraLength);
-    return {literalLength + extraLength, NumberConvertor::convertBinaryToLong(literal.str())};
+    return extraLength;
 }
 
 PacketResult PacketDecoder::readOperatorPacket(int typeId) {
-    char lengthTypeId = readLengthTypeId();
+    int lengthTypeId = readBits(LENGTH_TYPE_ID_SIZE);
     PacketResult result = {LENGTH_TYPE_ID_SIZE, 0};
-    std::vector<unsigned long> subOperationsResults;
-    if (lengthTypeId == '0') {
-        int lengthOfSubpackets = readLengthOfSubpackets();
+    std::vector<long> subOperationsResults;
+    if (lengthTypeId == 0) {
+        int lengthOfSubpackets = readBits(SUBPACKET_LENGTH_SIZE);
         result.packetLength += SUBPACKET_LENGTH_SIZE;
         while (lengthOfSubpackets > 0) {
             PacketResult subResult = readPacket();
@@ -66,7 +75,7 @@ PacketResult PacketDecoder::readOperatorPacket(int typeId) {
             lengthOfSubpackets -= subResult.packetLength;
         }
     } else {
-        int numberOfSubpackets = readNumberOfSubpackets();
+        int numberOfSubpackets = readBits(NUMBER_OF_SUBPACKETS_SIZE);
         result.packetLength += NUMBER_OF_SUBPACKETS_SIZE;
         for (int i = 0; i < numberOfSubpackets; i++) {
             PacketResult subResult = readPacket();
@@ -78,10 +87,10 @@ PacketResult PacketDecoder::readOperatorPacket(int typeId) {
     return result;
 }
 
-unsigned long PacketDecoder::calculateOperationResult(int typeId, const std::vector<unsigned long> &results) {
+long PacketDecoder::calculateOperationResult(int typeId, const std::vector<long> &results) {
     switch(typeId) {
-        case 0: return std::accumulate(results.begin(), results.end(), 0UL, std::plus<unsigned long>());
-        case 1: return std::accumulate(results.begin(), results.end(), 1UL, std::multiplies<unsigned long>());
+        case 0: return std::accumulate(results.begin(), results.end(), 0L, std::plus<long>());
+        case 1: return std::accumulate(results.begin(), results.end(), 1L, std::multiplies<long>());
         case 2: return *std::min_element(results.begin(), results.end());
         case 3: return *std::max_element(results.begin(), results.end());
         case 5: return results[0] > results[1] ? 1 : 0;
@@ -92,27 +101,14 @@ unsigned long PacketDecoder::calculateOperationResult(int typeId, const std::vec
 }
 
 Header PacketDecoder::readHeader() {
-    std::string version(VERSION_SIZE, ' ');
-    ss.read(&version[0], VERSION_SIZE);
-    std::string typeId(TYPE_ID_SIZE, ' ');
-    ss.read(&typeId[0], TYPE_ID_SIZE);
-    return Header{NumberConvertor::convertBinaryToLong(version), NumberConvertor::convertBinaryToLong(typeId)};
+    long version = readBits(VERSION_SIZE);
+    long typeId = readBits(TYPE_ID_SIZE);
+    return Header{version, typeId};
 }
 
-char PacketDecoder::readLengthTypeId() {
-    char lengthTypeId;
-    ss.read(&lengthTypeId, LENGTH_TYPE_ID_SIZE);
-    return lengthTypeId;
-}
-
-int PacketDecoder::readLengthOfSubpackets() {
-    std::string lengthOfSubPackets(SUBPACKET_LENGTH_SIZE, ' ');
-    ss.read(&lengthOfSubPackets[0], SUBPACKET_LENGTH_SIZE);
-    return NumberConvertor::convertBinaryToLong(lengthOfSubPackets);
-}
-
-int PacketDecoder::readNumberOfSubpackets() {
-    std::string numberOfSubPackets(NUMBER_OF_SUBPACKETS_SIZE, ' ');
-    ss.read(&numberOfSubPackets[0], NUMBER_OF_SUBPACKETS_SIZE);
-    return NumberConvertor::convertBinaryToLong(numberOfSubPackets);
+long PacketDecoder::readBits(int count) {
+    std::string bits;
+    bits.reserve(count);
+    ss.read(&bits[0], count);
+    return NumberConvertor::convertBinaryToLong(bits);
 }
